@@ -15,6 +15,23 @@ Simple:
 Static websites, as it can be generated with [jekyll](https://jekyllrb.com/)
 
 
+### Example with jekyll generated website
+
+First, build the website with `bundle exec jekyll serve`, which creates/update a `_site/` folder with all resources.
+
+Next, `python3 website_converter <path/to>/_site/`
+
+
+### Example with an external website
+
+1. Download a website wiht [`httrack`](https://www.kali.org/tools/httrack/) `sudo apt install httrack`
+2. Download a website of interest, for instance `httrack https://clauswilke.com/dataviz/` (this takes some time)
+3. Package as a zim: `python3 website_converter clauswilke.com/dataviz/`. We get a .zim file of 45MB
+
+Your zim is ready!
+
+
+
 ## Why not using libzim directly?
 
 Viewer/hoster like `kiwix` uses relative path.
