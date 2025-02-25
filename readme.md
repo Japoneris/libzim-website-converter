@@ -10,6 +10,8 @@ Simple:
 2. `python3 website_converter <path/to/_site/>`. The script will ask you additional metadata to create the zim file.
 3. Next, you can add the zim file to [`kiwix`](https://kiwix.org/)
 
+You can define your own icon adding the flag `--icon=<path_to_icon>`
+
 ## Target websites: 
 
 Static websites, as it can be generated with [jekyll](https://jekyllrb.com/)
@@ -44,7 +46,10 @@ Therefore, there are two options (at least):
 
 # TODO / Warnings
 
+- Icons come from [Freepik](https://freepik.com/)
 - [ ] Support for linux path OK, Windows KO
 - [ ] Does not support permalinks (i.e., if `/about/` maps to `about.html`, the redirect is likely to fail (due to the zim hoster)
 - [ ] **MIMETypes**: By default, `text/hml`. In the script, there is a dictionary `dic_mime` where you can add new mimetype. Currently, we support `css,  jpg, html, pdf, png, svg, xml`. The script will tell you which extensions were not recognized.
-- [ ] See how to add an icon as metadata / illustration
+- [x] See how to add an icon as metadata / illustration
+    - [x] Need an icon / png
+    - [x] Use the method "`.add_illustration(48, image_bytes)) 
