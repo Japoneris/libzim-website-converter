@@ -53,3 +53,10 @@ Therefore, there are two options (at least):
 - [x] See how to add an icon as metadata / illustration
     - [x] Need an icon / png
     - [x] Use the method "`.add_illustration(48, image_bytes)) 
+
+
+# Ideas:
+
+- Tool reading an existing zim, check the diff with a current repo, and add missing files (see if possible)
+- Tool to compress images
+- Tool to remove unused images to save space (I do not correctly remove unused images ...)

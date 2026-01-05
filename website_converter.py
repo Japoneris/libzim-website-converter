@@ -3,10 +3,13 @@ Given a `_site/` with all pages / assets in, create .zim
 
 a webpage should refer to style / assets using `href=/assets/`.
 Otherwise, it should handle page relativity itself.
+
+
 """
 
 import argparse
 import os
+import re
 from datetime import datetime
 
 
@@ -144,6 +147,7 @@ if __name__ == "__main__":
     
     info = None
     lst_unknown = [] # for unknown mime-type to add
+    lst_missing_index = [] # for links ending with / but no index.html exists
     
     with Creator(os.path.join(save_path, filename + ".zim")).config_indexing(True, lang) as creator:
         # Assume main entry page is index.html
@@ -170,6 +174,8 @@ if __name__ == "__main__":
                     print("Processed {} files".format(cnt), end="\r")
                     
                 item = None
+                # experimental
+                ext = ext.lower()
 
                 
                 if ext in dic_mime:
@@ -190,6 +196,24 @@ if __name__ == "__main__":
                     data = data.replace('src="/', 'src="{}'.format("../" * depth))
                     data = data.replace('url(/', 'url({}'.format("../" * depth))
                     data = data.replace('url("/', 'url("{}'.format("../" * depth))
+
+                    # Check and replace links ending with / to /index.html only if index.html exists
+                    def check_and_replace_index(match):
+                        link = match.group(1)  # Get the path before the /"
+                        # Construct the absolute path to check
+                        index_path = os.path.join(load_path, link.lstrip('/'), 'index.html')
+
+                        if os.path.exists(index_path):
+                            return link + '/index.html"'
+                        else:
+                            # Collect warning for missing index
+                            warning_msg = f"{relpath} -> Link '{link}/' has no index.html"
+                            if warning_msg not in lst_missing_index:
+                                lst_missing_index.append(warning_msg)
+                            return link + '/"'  # Keep original link
+
+                    # Replace only verified index pages
+                    data = re.sub(r'((?:href="|src=")(?:\.\./)*[^"]*/)(?=")', check_and_replace_index, data)
 
                     item = MyItem(title=title,
                            path=relpath,
@@ -215,3 +239,8 @@ if __name__ == "__main__":
     print("== Done ! ==")
     print("Missing mimetypes:")
     print(", ".join(sorted(set(lst_unknown))))
+
+    if lst_missing_index:
+        print("\n=== WARNING: Links ending with / but no index.html found ===")
+        for warning in lst_missing_index:
+            print(warning)
