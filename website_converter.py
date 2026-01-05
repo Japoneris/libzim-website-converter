@@ -348,12 +348,12 @@ Examples:
     --non-interactive
 
   # Using a configuration file
-  python3 website_converter.py myblog/_site/ --config config.json
+  python3 website_converter.py myblog/_site/ --config config/example.json
         """
     )
 
     parser.add_argument("site_path", help="Path to the compiled website directory")
-    parser.add_argument("--output_path", default="zim", help="Output directory for ZIM file (default: zim)")
+    parser.add_argument("--output_path", default="zim_files", help="Output directory for ZIM file (default: zim_files)")
     parser.add_argument("--icon", default="icons/comment.png", help="Path to ZIM icon (default: icons/comment.png)")
 
     # Metadata arguments

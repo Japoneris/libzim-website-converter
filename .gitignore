@@ -1,0 +1,38 @@
+# ZIM archives
+zim_files/*.zim
+
+# Downloaded websites
+downloads/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+my_env/
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Generated files
+*.log
+conversion_report.html
+
+# User configs
+config/*.json
+!config/example.json
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db

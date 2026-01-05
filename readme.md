@@ -1,62 +1,239 @@
-# Transform a static website into a ZIM file
+# Transform a Static Website into a ZIM File
 
-Here, we use [python libzim](https://github.com/openzim/python-libzim) to create a zim file, which use `openzim` under the hood.
+A Python script to convert static websites into [ZIM archives](https://wiki.openzim.org/wiki/ZIM_file_format) for offline viewing with [Kiwix](https://kiwix.org/).
 
-## How to use?
+Uses [python-libzim](https://github.com/openzim/python-libzim) to create ZIM files with automatic path conversion, image optimization, and validation.
 
-Simple:
+## Installation
 
-1. `pip install libzim` (no `requirements.txt` for a single file)
-2. `python3 website_converter <path/to/_site/>`. The script will ask you additional metadata to create the zim file.
-3. Next, you can add the zim file to [`kiwix`](https://kiwix.org/)
+```bash
+# Required
+pip install libzim
 
-You can define your own icon adding the flag `--icon=<path_to_icon>`
+# Optional (for additional features)
+pip install tqdm Pillow
 
-## Target websites: 
+# Or install all at once
+pip install -r requirements.txt
+```
 
-Static websites, as it can be generated with [jekyll](https://jekyllrb.com/)
+## Quick Start
+
+**Basic usage (interactive):**
+```bash
+python3 website_converter.py myblog/_site/
+```
+The script will prompt for metadata (name, creator, language, etc.).
+
+**Non-interactive mode:**
+```bash
+python3 website_converter.py myblog/_site/ \
+  --name "myblog" --title "My Blog" \
+  --creator "Your Name" --language eng \
+  --non-interactive
+```
+
+**Using a configuration file:**
+```bash
+python3 website_converter.py myblog/_site/ --config config/example.json
+```
+
+ZIM files are saved to `zim_files/` by default.
+
+## Features
+
+- ✅ **Automatic path conversion** - Converts absolute paths to relative paths
+- ✅ **Image optimization** - Resize and compress images (optional)
+- ✅ **Progress bars** - Visual feedback during conversion
+- ✅ **Dry run mode** - Analyze website without creating ZIM
+- ✅ **HTML validation report** - Identify broken links and issues
+- ✅ **Configuration files** - Reusable conversion settings
+- ✅ **Cross-platform** - Works on Linux, macOS, and Windows
+- ✅ **Non-interactive mode** - Perfect for CI/CD pipelines
+- ✅ **35+ MIME types** - Comprehensive file format support
+
+## Directory Structure
+
+```
+ZimSite/
+├── website_converter.py    # Main ZIM converter script
+├── httrack_wrapper.py      # HTTrack wrapper script
+├── requirements.txt         # Python dependencies
+├── readme.md               # This file
+├── icons/                  # Icon assets for ZIM metadata
+├── config/                 # Configuration files
+│   ├── example.json       # Example configuration
+│   ├── myfamily.json      # User configs
+│   └── interpretable.json
+├── downloads/              # Downloaded websites (auto-created)
+└── zim_files/             # Output directory for ZIM archives
+    └── *.zim              # Your generated ZIM files
+```
+
+## HTTrack Wrapper
+
+The `httrack_wrapper.py` script simplifies downloading websites with HTTrack and preparing them for ZIM conversion.
+
+**Basic usage:**
+```bash
+# Download website (name auto-generated from URL)
+python3 httrack_wrapper.py https://example.com/docs/
+
+# Download with custom name
+python3 httrack_wrapper.py https://example.com/docs/ --name mydocs
+
+# Pass additional httrack options
+python3 httrack_wrapper.py https://example.com/ --httrack-args "-r3 --max-rate=1000000"
+```
+
+**What it does:**
+1. Creates download folder in `downloads/`
+2. Downloads website content using httrack
+3. Generates config file in `config/` directory
+4. Shows next steps for ZIM conversion
+
+**Options:**
+- `--name` - Custom project name (auto-generated if not provided)
+- `--output` - Output directory (default: `downloads`)
+- `--config-dir` - Config directory (default: `config`)
+- `--httrack-args` - Additional httrack arguments
+- `--skip-download` - Only create config file, skip download
+
+## Examples
+
+### Example 1: Jekyll Website
+
+```bash
+# Build the Jekyll site
+bundle exec jekyll build
+
+# Convert to ZIM
+python3 website_converter.py myblog/_site/ \
+  --name "myblog" \
+  --title "My Personal Blog" \
+  --creator "John Doe" \
+  --language eng
+```
+
+### Example 2: External Website (Using HTTrack Wrapper)
+
+```bash
+# Install httrack if needed
+sudo apt install httrack
+
+# Download and prepare website
+python3 httrack_wrapper.py https://clauswilke.com/dataviz/ --name dataviz
+
+# Edit the generated config file if needed
+nano config/dataviz.json
+
+# Convert to ZIM using the config
+python3 website_converter.py downloads/dataviz/*/ --config config/dataviz.json
+```
+
+### Example 3: Optimized Conversion
+
+```bash
+# With image optimization and validation report
+python3 website_converter.py myblog/_site/ \
+  --config config/example.json \
+  --optimize-images \
+  --max-image-width 1280 \
+  --report
+```
+
+### Example 4: Dry Run (Analysis Only)
+
+```bash
+# Analyze website without creating ZIM
+python3 website_converter.py myblog/_site/ --dry-run
+
+# Opens conversion_report.html with all issues found
+```
 
 
-### Example with jekyll generated website
 
-First, build the website with `bundle exec jekyll serve`, which creates/update a `_site/` folder with all resources.
+## Command-Line Options
 
-Next, `python3 website_converter <path/to>/_site/`
+```bash
+python3 website_converter.py --help
+```
 
+**Positional:**
+- `site_path` - Path to compiled website directory
 
-### Example with an external website
+**Metadata:**
+- `--name` - ZIM filename (without .zim)
+- `--title` - Title metadata
+- `--creator` - Creator name
+- `--publisher` - Publisher name (default: "You")
+- `--description` - Content description
+- `--language` - ISO 639-3 language code (eng, fra, etc.)
 
-1. Download a website wiht [`httrack`](https://www.kali.org/tools/httrack/) `sudo apt install httrack`
-2. Download a website of interest, for instance `httrack https://clauswilke.com/dataviz/` (this takes some time)
-3. Package as a zim: `python3 website_converter clauswilke.com/dataviz/`. We get a .zim file of 45MB
+**Configuration:**
+- `--config` - Path to JSON config file (e.g., `config/example.json`)
+- `--non-interactive` - No prompts (requires all metadata via flags)
+- `--output_path` - Output directory (default: `zim_files`)
+- `--icon` - Path to icon PNG (default: `icons/comment.png`)
 
-Your zim is ready!
+**Features:**
+- `--optimize-images` - Resize/compress images (requires Pillow)
+- `--max-image-width` - Max width for optimization (default: 1920)
+- `--image-quality` - JPEG quality (default: 85)
+- `--dry-run` - Analyze without creating ZIM
+- `--report` - Generate HTML validation report
 
+**Verbosity:**
+- `--verbose` - Show debug output
+- `--quiet` - Only show errors
+- `--no-progress` - Disable progress bar
 
+## Configuration File Format
 
-## Why not using libzim directly?
+Create a JSON file in `config/` directory:
 
-Viewer/hoster like `kiwix` uses relative path.
-For instance, if a webpage asks for `<site_base_path>/assets/myfile.txt`, it is transformed into `<kiwix_url>/myzimfilename/content/assets/myfile.txt`. 
+```json
+{
+  "name": "my-website",
+  "title": "My Website Title",
+  "creator": "Your Name",
+  "publisher": "Your Organization",
+  "description": "Website description",
+  "language": "eng"
+}
+```
 
-Therefore, there are two options (at least):
+## Technical Details
 
-- when coding the website, access to resources using relative path only
-- convert all absolute paths to relative path based on document depth (the option we follow)
+### Path Conversion
 
-# TODO / Warnings
+Kiwix/ZIM viewers use relative paths. When a webpage requests `/assets/myfile.txt`,
+it becomes `<kiwix_url>/zimfile/content/assets/myfile.txt`.
 
-- Icons come from [Freepik](https://freepik.com/)
-- [ ] Support for linux path OK, Windows KO
-- [ ] Does not support permalinks (i.e., if `/about/` maps to `about.html`, the redirect is likely to fail (due to the zim hoster)
-- [ ] **MIMETypes**: By default, `text/hml`. In the script, there is a dictionary `dic_mime` where you can add new mimetype. Currently, we support `css,  jpg, html, pdf, png, svg, xml`. The script will tell you which extensions were not recognized.
-- [x] See how to add an icon as metadata / illustration
-    - [x] Need an icon / png
-    - [x] Use the method "`.add_illustration(48, image_bytes)) 
+This script automatically converts absolute paths (`/assets/`) to relative paths
+(`../assets/`, `../../assets/`, etc.) based on document depth in the directory tree.
 
+### Supported MIME Types
 
-# Ideas:
+**Images:** png, jpg, jpeg, gif, bmp, svg, webp, ico, tiff
+**Styles:** css, scss
+**Scripts:** js, ts, json
+**Documents:** pdf, txt, xml, csv, doc, docx, odt, epub
+**Media:** mp4, mpeg, wav, midi
+**Archives:** zip, rar, bz, bz2
+**Fonts:** ttf, otf
+**Other:** 35+ types total
 
-- Tool reading an existing zim, check the diff with a current repo, and add missing files (see if possible)
-- Tool to compress images
-- Tool to remove unused images to save space (I do not correctly remove unused images ...)
+Unknown extensions are treated as HTML and logged in the report.
+
+## Known Limitations
+
+- **Permalinks:** Direct mappings like `/about/` → `about.html` may not work (ZIM viewer limitation)
+- **Dynamic content:** JavaScript-heavy SPAs may need special handling
+- **Large files:** Very large ZIM files (>4GB) may have compatibility issues with some readers
+
+## Credits
+
+- Icons from [Freepik](https://freepik.com/)
+- Built with [python-libzim](https://github.com/openzim/python-libzim)
+- Compatible with [Kiwix](https://kiwix.org/)
