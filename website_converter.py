@@ -8,10 +8,9 @@ Otherwise, it should handle page relativity itself.
 """
 
 import argparse
-import os
 import re
 from datetime import datetime
-
+from pathlib import Path
 
 from libzim.writer import Creator, Item, StringProvider, FileProvider, Hint
 
@@ -108,15 +107,9 @@ if __name__ == "__main__":
     parser.add_argument("--verbose", action="store_true", default=False, help="If turn on, print all files.") # easier than using `input()`
     args = parser.parse_args()
 
-    load_path = args.site_path
-    save_path = args.output_path
-    os.makedirs(save_path, exist_ok=True)
-
-
-    if load_path.endswith("/") == False:
-        load_path = load_path + "/"
-        
-    l = len(load_path)
+    load_path = Path(args.site_path)
+    save_path = Path(args.output_path)
+    save_path.mkdir(parents=True, exist_ok=True)
 
     filename = input("zim name? \t") or "test"
 
@@ -144,96 +137,91 @@ if __name__ == "__main__":
         }
     
     print("=== Building ===")
-    
-    info = None
+
     lst_unknown = [] # for unknown mime-type to add
     lst_missing_index = [] # for links ending with / but no index.html exists
     
-    with Creator(os.path.join(save_path, filename + ".zim")).config_indexing(True, lang) as creator:
+    with Creator(str(save_path / f"{filename}.zim")).config_indexing(True, lang) as creator:
         # Assume main entry page is index.html
         creator.set_mainpath( "index.html")
         creator.add_illustration(48, illustration) # Add icon
         
         cnt = 0
-        for subpath, _, files in os.walk(load_path):
-            # Path, directories, files
-            for file in files:
-                cnt += 1
-                filepath = os.path.join(subpath, file)
-                relpath = filepath[l:] # Relative path within the website
-                depth = relpath.count("/")
-                title = file.rsplit(".", 1)[0]
-                ext = relpath.rsplit(".", 1)[-1]
+        for filepath in load_path.rglob("*"):
+            # Skip directories, only process files
+            if not filepath.is_file():
+                continue
 
-                
-                if args.verbose:
-                    print("Depth: {} \t{}".format(depth, relpath))
-                    
-                else:
-                    # One line - progress
-                    print("Processed {} files".format(cnt), end="\r")
-                    
-                item = None
-                # experimental
-                ext = ext.lower()
+            cnt += 1
+            relpath = str(filepath.relative_to(load_path))
+            depth = relpath.count("/")
+            title = filepath.stem
+            ext = filepath.suffix.lstrip(".")
 
-                
-                if ext in dic_mime:
-                    mime = dic_mime[ext]
-                    item = MyItem(title=title,
-                         path=relpath,
-                         fpath=filepath,
-                        mimetype=mime)
-                    
-                elif filepath.endswith(".html") | filepath.endswith(".htm"):
-                    # HTML file
-                    data = None
-                    with open(filepath, "r") as fp:
-                        data = fp.read()
+            if args.verbose:
+                print("Depth: {} \t{}".format(depth, relpath))
+            else:
+                # One line - progress
+                print("Processed {} files".format(cnt), end="\r")
 
-                    # Replace absolute reference by relative reference to get access to sources
-                    data = data.replace('href="/', 'href="{}'.format("../" * depth))
-                    data = data.replace('src="/', 'src="{}'.format("../" * depth))
-                    data = data.replace('url(/', 'url({}'.format("../" * depth))
-                    data = data.replace('url("/', 'url("{}'.format("../" * depth))
+            # experimental
+            ext = ext.lower()
 
-                    # Check and replace links ending with / to /index.html only if index.html exists
-                    def check_and_replace_index(match):
-                        link = match.group(1)  # Get the path before the /"
-                        # Construct the absolute path to check
-                        index_path = os.path.join(load_path, link.lstrip('/'), 'index.html')
+            if ext in dic_mime:
+                mime = dic_mime[ext]
+                item = MyItem(title=title,
+                     path=relpath,
+                     fpath=str(filepath),
+                    mimetype=mime)
 
-                        if os.path.exists(index_path):
-                            return link + '/index.html"'
-                        else:
-                            # Collect warning for missing index
-                            warning_msg = f"{relpath} -> Link '{link}/' has no index.html"
-                            if warning_msg not in lst_missing_index:
-                                lst_missing_index.append(warning_msg)
-                            return link + '/"'  # Keep original link
+            elif str(filepath).endswith(".html") or str(filepath).endswith(".htm"):
+                # HTML file
+                with open(filepath, "r", encoding="utf-8", errors="replace") as fp:
+                    data = fp.read()
 
-                    # Replace only verified index pages
-                    data = re.sub(r'((?:href="|src=")(?:\.\./)*[^"]*/)(?=")', check_and_replace_index, data)
+                # Replace absolute reference by relative reference to get access to sources
+                data = data.replace('href="/', 'href="{}'.format("../" * depth))
+                data = data.replace('src="/', 'src="{}'.format("../" * depth))
+                data = data.replace('url(/', 'url({}'.format("../" * depth))
+                data = data.replace('url("/', 'url("{}'.format("../" * depth))
 
-                    item = MyItem(title=title,
-                           path=relpath,
-                           content=data)
-                else:
-                    print("Unknown mimetype:", relpath)
-                    lst_unknown.append(relpath.rsplit(".", 1)[-1])
-                    
-                    item = MyItem(title=title,
-                            path=relpath,
-                            fpath=filepath) # will be considered as html
-                
-                creator.add_item(item)
-                
+                # Check and replace links ending with / to /index.html only if index.html exists
+                def check_and_replace_index(match):
+                    link = match.group(1)  # Get the path before the /"
+                    # Construct the absolute path to check
+                    index_path = load_path / link.lstrip('/') / 'index.html'
+
+                    if index_path.exists():
+                        return link + '/index.html"'
+                    else:
+                        # Collect warning for missing index
+                        warning_msg = f"{relpath} -> Link '{link}/' has no index.html"
+                        if warning_msg not in lst_missing_index:
+                            lst_missing_index.append(warning_msg)
+                        return link + '/"'  # Keep original link
+
+                # Replace only verified index pages
+                data = re.sub(r'((?:href="|src=")(?:\.\./)*[^"]*/)(?=")', check_and_replace_index, data)
+
+                item = MyItem(title=title,
+                       path=relpath,
+                       content=data)
+            else:
+                print("Unknown mimetype:", relpath)
+                lst_unknown.append(relpath.rsplit(".", 1)[-1])
+
+                item = MyItem(title=title,
+                        path=relpath,
+                        fpath=str(filepath)) # will be considered as html
+
+            creator.add_item(item)
+
         print("=== Add metadata ===")
         # metadata
         for name, value in dic_metadata.items():
             creator.add_metadata(name.title(), value)
             # .title() fx just uppercase the first letter
-            
+
         print("== Quit ==> Compiling (This operation takes time, more than just looking at files) ==")
 
     print("== Done ! ==")
