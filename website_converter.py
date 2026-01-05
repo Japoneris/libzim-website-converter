@@ -572,88 +572,88 @@ Examples:
                     # Normalize extension to lowercase
                     ext = ext.lower()
 
-                try:
-                    if ext in dic_mime:
-                        mime = dic_mime[ext]
+                    try:
+                        if ext in dic_mime:
+                            mime = dic_mime[ext]
 
-                        # Try to optimize images if enabled
-                        if args.optimize_images and ext in ['jpg', 'jpeg', 'png']:
-                            result = optimize_image(filepath, args.max_image_width, args.image_quality)
-                            if result:
-                                optimized_data, orig_size, new_size = result
-                                images_optimized += 1
-                                bytes_saved += (orig_size - new_size)
-                                # Use optimized data instead of file
-                                item = MyItem(title=title,
-                                     path=relpath,
-                                     content=optimized_data,
-                                     mimetype=mime)
-                                if args.verbose:
-                                    logger.debug(f"Optimized {relpath}: {orig_size} -> {new_size} bytes")
+                            # Try to optimize images if enabled
+                            if args.optimize_images and ext in ['jpg', 'jpeg', 'png']:
+                                result = optimize_image(filepath, args.max_image_width, args.image_quality)
+                                if result:
+                                    optimized_data, orig_size, new_size = result
+                                    images_optimized += 1
+                                    bytes_saved += (orig_size - new_size)
+                                    # Use optimized data instead of file
+                                    item = MyItem(title=title,
+                                         path=relpath,
+                                         content=optimized_data,
+                                         mimetype=mime)
+                                    if args.verbose:
+                                        logger.debug(f"Optimized {relpath}: {orig_size} -> {new_size} bytes")
+                                else:
+                                    # Use original file
+                                    item = MyItem(title=title,
+                                         path=relpath,
+                                         fpath=str(filepath),
+                                        mimetype=mime)
                             else:
-                                # Use original file
+                                # No optimization, use file directly
                                 item = MyItem(title=title,
                                      path=relpath,
                                      fpath=str(filepath),
                                     mimetype=mime)
-                        else:
-                            # No optimization, use file directly
+
+                        elif str(filepath).endswith(".html") or str(filepath).endswith(".htm"):
+                            # HTML file
+                            with open(filepath, "r", encoding="utf-8", errors="replace") as fp:
+                                data = fp.read()
+
+                            # Replace absolute reference by relative reference to get access to sources
+                            data = data.replace('href="/', 'href="{}'.format("../" * depth))
+                            data = data.replace('src="/', 'src="{}'.format("../" * depth))
+                            data = data.replace('url(/', 'url({}'.format("../" * depth))
+                            data = data.replace('url("/', 'url("{}'.format("../" * depth))
+
+                            # Check and replace links ending with / to /index.html only if index.html exists
+                            def check_and_replace_index(match):
+                                link = match.group(1)  # Get the path before the /"
+                                # Construct the absolute path to check
+                                index_path = load_path / link.lstrip('/') / 'index.html'
+
+                                if index_path.exists():
+                                    return link + '/index.html"'
+                                else:
+                                    # Collect warning for missing index
+                                    warning_msg = f"{relpath} -> Link '{link}/' has no index.html"
+                                    if warning_msg not in lst_missing_index:
+                                        lst_missing_index.append(warning_msg)
+                                    return link + '/"'  # Keep original link
+
+                            # Replace only verified index pages
+                            data = re.sub(r'((?:href="|src=")(?:\.\./)*[^"]*/)(?=")', check_and_replace_index, data)
+
                             item = MyItem(title=title,
-                                 path=relpath,
-                                 fpath=str(filepath),
-                                mimetype=mime)
+                                   path=relpath,
+                                   content=data)
+                        else:
+                            logger.debug(f"Unknown mimetype: {relpath}")
+                            lst_unknown.append(relpath.rsplit(".", 1)[-1])
 
-                    elif str(filepath).endswith(".html") or str(filepath).endswith(".htm"):
-                        # HTML file
-                        with open(filepath, "r", encoding="utf-8", errors="replace") as fp:
-                            data = fp.read()
+                            item = MyItem(title=title,
+                                    path=relpath,
+                                    fpath=str(filepath)) # will be considered as html
 
-                        # Replace absolute reference by relative reference to get access to sources
-                        data = data.replace('href="/', 'href="{}'.format("../" * depth))
-                        data = data.replace('src="/', 'src="{}'.format("../" * depth))
-                        data = data.replace('url(/', 'url({}'.format("../" * depth))
-                        data = data.replace('url("/', 'url("{}'.format("../" * depth))
+                        creator.add_item(item)
 
-                        # Check and replace links ending with / to /index.html only if index.html exists
-                        def check_and_replace_index(match):
-                            link = match.group(1)  # Get the path before the /"
-                            # Construct the absolute path to check
-                            index_path = load_path / link.lstrip('/') / 'index.html'
-
-                            if index_path.exists():
-                                return link + '/index.html"'
-                            else:
-                                # Collect warning for missing index
-                                warning_msg = f"{relpath} -> Link '{link}/' has no index.html"
-                                if warning_msg not in lst_missing_index:
-                                    lst_missing_index.append(warning_msg)
-                                return link + '/"'  # Keep original link
-
-                        # Replace only verified index pages
-                        data = re.sub(r'((?:href="|src=")(?:\.\./)*[^"]*/)(?=")', check_and_replace_index, data)
-
-                        item = MyItem(title=title,
-                               path=relpath,
-                               content=data)
-                    else:
-                        logger.debug(f"Unknown mimetype: {relpath}")
-                        lst_unknown.append(relpath.rsplit(".", 1)[-1])
-
-                        item = MyItem(title=title,
-                                path=relpath,
-                                fpath=str(filepath)) # will be considered as html
-
-                    creator.add_item(item)
-
-                except PermissionError:
-                    logger.error(f"Permission denied reading file: {filepath}")
-                    lst_errors.append(f"{relpath} (Permission denied)")
-                except UnicodeDecodeError as e:
-                    logger.error(f"Encoding error in file {filepath}: {e}")
-                    lst_errors.append(f"{relpath} (Encoding error)")
-                except Exception as e:
-                    logger.error(f"Failed to process file {filepath}: {e}")
-                    lst_errors.append(f"{relpath} ({type(e).__name__})")
+                    except PermissionError:
+                        logger.error(f"Permission denied reading file: {filepath}")
+                        lst_errors.append(f"{relpath} (Permission denied)")
+                    except UnicodeDecodeError as e:
+                        logger.error(f"Encoding error in file {filepath}: {e}")
+                        lst_errors.append(f"{relpath} (Encoding error)")
+                    except Exception as e:
+                        logger.error(f"Failed to process file {filepath}: {e}")
+                        lst_errors.append(f"{relpath} ({type(e).__name__})")
 
                 if not args.quiet and use_progress_bar:
                     print()  # Clear progress line
