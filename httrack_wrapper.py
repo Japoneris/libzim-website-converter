@@ -8,10 +8,24 @@ Creates download folder, downloads content, and generates config file.
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urljoin
+
+try:
+    import urllib.request
+    URLLIB_AVAILABLE = True
+except ImportError:
+    URLLIB_AVAILABLE = False
+
+try:
+    from PIL import Image
+    import io
+    PILLOW_AVAILABLE = True
+except ImportError:
+    PILLOW_AVAILABLE = False
 
 
 def derive_name_from_url(url):
@@ -41,7 +55,7 @@ def derive_name_from_url(url):
     return name.lower()
 
 
-def create_config_file(name, url, config_dir='config'):
+def create_config_file(name, url, config_dir='config', resolve_external=False, icon=None):
     """Create a configuration file for the downloaded website."""
     config_dir = Path(config_dir)
     config_dir.mkdir(exist_ok=True)
@@ -60,8 +74,12 @@ def create_config_file(name, url, config_dir='config'):
         "creator": "Unknown",
         "publisher": "Downloaded via HTTrack",
         "description": f"Offline copy of {url}",
-        "language": "eng"
+        "language": "eng",
+        "resolve_external": resolve_external
     }
+
+    if icon:
+        config_data["icon"] = icon
 
     with open(config_file, 'w', encoding='utf-8') as f:
         json.dump(config_data, f, indent=2, ensure_ascii=False)
@@ -95,6 +113,159 @@ def run_httrack(url, output_dir, additional_args=None):
         return False
 
 
+def find_favicon_in_download(download_dir):
+    """Look for a favicon in the httrack downloaded files."""
+    download_path = Path(download_dir)
+
+    # Common favicon filenames, ordered by preference
+    favicon_names = ['favicon.ico', 'favicon.png', 'favicon.svg',
+                     'apple-touch-icon.png', 'apple-touch-icon-precomposed.png']
+
+    # Search recursively for favicon files
+    for name in favicon_names:
+        matches = list(download_path.rglob(name))
+        if matches:
+            return matches[0]
+
+    # Try to find favicon link in downloaded HTML
+    for html_file in download_path.rglob('index.html'):
+        try:
+            content = html_file.read_text(encoding='utf-8', errors='ignore')
+            # Match <link rel="icon" ...> or <link rel="shortcut icon" ...>
+            pattern = r'<link[^>]+rel=["\'](?:shortcut )?icon["\'][^>]+href=["\']([^"\']+)["\']'
+            match = re.search(pattern, content, re.IGNORECASE)
+            if not match:
+                # Try reversed order: href before rel
+                pattern = r'<link[^>]+href=["\']([^"\']+)["\'][^>]+rel=["\'](?:shortcut )?icon["\']'
+                match = re.search(pattern, content, re.IGNORECASE)
+            if match:
+                href = match.group(1)
+                # Resolve relative path from the HTML file's directory
+                if not href.startswith(('http://', 'https://', '//')):
+                    candidate = (html_file.parent / href).resolve()
+                    if candidate.is_file():
+                        return candidate
+                # Try from download root (absolute path like /favicon.ico)
+                if href.startswith('/'):
+                    for subdir in download_path.iterdir():
+                        if subdir.is_dir():
+                            candidate = subdir / href.lstrip('/')
+                            if candidate.is_file():
+                                return candidate
+        except Exception:
+            continue
+
+    return None
+
+
+def fetch_favicon_from_url(url):
+    """Try to download the favicon directly from the website."""
+    if not URLLIB_AVAILABLE:
+        return None
+
+    parsed = urlparse(url)
+    base_url = f"{parsed.scheme}://{parsed.netloc}"
+
+    # Try common favicon URLs
+    favicon_urls = [
+        urljoin(base_url, '/favicon.ico'),
+        urljoin(base_url, '/favicon.png'),
+        urljoin(base_url, '/apple-touch-icon.png'),
+    ]
+
+    # Also try to parse the page for a favicon link
+    try:
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=10) as response:
+            html = response.read().decode('utf-8', errors='ignore')
+            pattern = r'<link[^>]+rel=["\'](?:shortcut )?icon["\'][^>]+href=["\']([^"\']+)["\']'
+            match = re.search(pattern, html, re.IGNORECASE)
+            if not match:
+                pattern = r'<link[^>]+href=["\']([^"\']+)["\'][^>]+rel=["\'](?:shortcut )?icon["\']'
+                match = re.search(pattern, html, re.IGNORECASE)
+            if match:
+                href = match.group(1)
+                resolved = urljoin(url, href)
+                # Insert at the beginning so it's tried first
+                favicon_urls.insert(0, resolved)
+    except Exception:
+        pass
+
+    for fav_url in favicon_urls:
+        try:
+            req = urllib.request.Request(fav_url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=10) as response:
+                if response.status == 200:
+                    content_type = response.headers.get('Content-Type', '')
+                    if 'image' in content_type or fav_url.endswith(('.ico', '.png', '.svg')):
+                        return response.read(), fav_url
+        except Exception:
+            continue
+
+    return None
+
+
+def convert_favicon_to_png(image_data, output_path, size=48):
+    """Convert favicon data to a 48x48 PNG suitable for ZIM."""
+    if PILLOW_AVAILABLE:
+        try:
+            img = Image.open(io.BytesIO(image_data))
+            # For ICO files with multiple sizes, pick the best one
+            if hasattr(img, 'n_frames') and img.format == 'ICO':
+                # ICO files can have multiple sizes, Pillow picks the first
+                pass
+            img = img.convert('RGBA')
+            img = img.resize((size, size), Image.LANCZOS)
+            img.save(output_path, 'PNG')
+            return True
+        except Exception as e:
+            print(f"Warning: Failed to convert favicon with Pillow: {e}")
+            return False
+    else:
+        # Without Pillow, save raw data only if it's already PNG
+        if image_data[:8] == b'\x89PNG\r\n\x1a\n':
+            with open(output_path, 'wb') as f:
+                f.write(image_data)
+            return True
+        else:
+            print("Warning: Pillow not installed, cannot convert favicon to PNG.")
+            print("  Install with: pip install Pillow")
+            return False
+
+
+def fetch_and_save_favicon(url, download_dir, name, icons_dir='icons'):
+    """Try to find/download a favicon and save it as a PNG icon.
+
+    Returns the path to the saved icon, or None if not found.
+    """
+    icons_path = Path(icons_dir)
+    icons_path.mkdir(exist_ok=True)
+    output_path = icons_path / f"{name}.png"
+
+    # First, look in the downloaded files
+    print("Looking for favicon in downloaded files...")
+    local_favicon = find_favicon_in_download(download_dir)
+    if local_favicon:
+        print(f"  Found local favicon: {local_favicon}")
+        image_data = local_favicon.read_bytes()
+        if convert_favicon_to_png(image_data, output_path):
+            print(f"  Saved icon: {output_path}")
+            return str(output_path)
+
+    # Second, try fetching directly from the website
+    print("Fetching favicon from website...")
+    result = fetch_favicon_from_url(url)
+    if result:
+        image_data, fav_url = result
+        print(f"  Found favicon at: {fav_url}")
+        if convert_favicon_to_png(image_data, output_path):
+            print(f"  Saved icon: {output_path}")
+            return str(output_path)
+
+    print("  No favicon found.")
+    return None
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="HTTrack wrapper for downloading websites and preparing for ZIM conversion",
@@ -121,6 +292,8 @@ Examples:
     parser.add_argument("--config-dir", default="config", help="Directory for config files (default: config)")
     parser.add_argument("--httrack-args", help="Additional arguments to pass to httrack (as a quoted string)")
     parser.add_argument("--skip-download", action="store_true", help="Skip download, only create config file")
+    parser.add_argument("--resolve-external", action="store_true", help="Enable external dependency resolution during ZIM conversion")
+    parser.add_argument("--no-favicon", action="store_true", help="Skip favicon fetching")
 
     args = parser.parse_args()
 
@@ -146,15 +319,25 @@ Examples:
         print("Skipping download (--skip-download)")
         download_dir.mkdir(parents=True, exist_ok=True)
 
+    # Try to fetch favicon
+    icon_path = None
+    if not args.no_favicon:
+        print(f"\n=== Fetching Favicon ===")
+        icon_path = fetch_and_save_favicon(args.url, download_dir, name)
+
     # Create config file
     print(f"\nCreating config file...")
-    config_file = create_config_file(name, args.url, args.config_dir)
+    config_file = create_config_file(name, args.url, args.config_dir,
+                                     resolve_external=args.resolve_external,
+                                     icon=icon_path)
     print(f"Config file created: {config_file}")
 
     print(f"\n=== Summary ===")
     print(f"Project name: {name}")
     print(f"Download directory: {download_dir}")
     print(f"Config file: {config_file}")
+    print(f"Icon: {icon_path or 'not found (using default)'}")
+    print(f"Resolve external deps: {args.resolve_external}")
 
     if not args.skip_download:
         print(f"\nNext steps:")
