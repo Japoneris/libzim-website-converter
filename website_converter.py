@@ -10,12 +10,14 @@ import logging
 import sys
 from datetime import datetime
 from pathlib import Path
+from types import SimpleNamespace
 
 from libzim.writer import Creator
 
 from converter import (
     setup_logging,
     load_config,
+    validate_config,
     validate_language_code,
     validate_filename,
     sanitize_filename,
@@ -40,55 +42,54 @@ if __name__ == "__main__":
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Interactive mode (prompts for metadata)
-  python3 website_converter.py myblog/_site/
+  # Basic usage — all settings come from the config file
+  python3 website_converter.py config/my-site.json
 
-  # Non-interactive mode (all metadata via flags)
-  python3 website_converter.py myblog/_site/ --name "My Blog" --title "Personal Blog" \\
-    --creator "John Doe" --description "My personal blog" --language eng \\
-    --non-interactive
+  # Dry-run to analyze without creating a ZIM
+  python3 website_converter.py config/my-site.json --dry-run
 
-  # Using a configuration file
-  python3 website_converter.py myblog/_site/ --config config/example.json
+  # Verbose output
+  python3 website_converter.py config/my-site.json --verbose
+
+Create a config file interactively:
+  python3 create_config.py
         """
     )
 
-    parser.add_argument("site_path", help="Path to the compiled website directory")
-    parser.add_argument("--output_path", default="zim_files", help="Output directory for ZIM file (default: zim_files)")
-    parser.add_argument("--icon", default="icons/comment.png", help="Path to ZIM icon (default: icons/comment.png)")
+    parser.add_argument("config_file", help="Path to JSON configuration file")
 
-    # Metadata arguments
-    parser.add_argument("--name", help="ZIM filename (without .zim extension)")
-    parser.add_argument("--title", help="ZIM title metadata")
-    parser.add_argument("--creator", help="Creator name")
-    parser.add_argument("--publisher", default="You", help="Publisher name (default: You)")
-    parser.add_argument("--description", help="Description of the content")
-    parser.add_argument("--language", help="ISO 639-3 language code (e.g., eng, fra)")
-
-    # Configuration and verbosity
-    parser.add_argument("--config", help="Path to JSON configuration file")
-    parser.add_argument("--non-interactive", action="store_true", help="Non-interactive mode (no prompts, use flags or config)")
+    # Runtime flags only — everything else comes from the config
     parser.add_argument("--verbose", action="store_true", help="Enable verbose output (DEBUG level)")
     parser.add_argument("--quiet", action="store_true", help="Suppress all output except errors")
-
-    # Phase 3 features
     parser.add_argument("--dry-run", action="store_true", help="Analyze and report without creating ZIM file")
-    parser.add_argument("--optimize-images", action="store_true", help="Optimize images (resize/compress) - requires Pillow")
-    parser.add_argument("--max-image-width", type=int, default=1920, help="Maximum image width for optimization (default: 1920)")
-    parser.add_argument("--image-quality", type=int, default=85, help="JPEG quality for optimization (default: 85)")
     parser.add_argument("--report", action="store_true", help="Generate HTML validation report")
     parser.add_argument("--no-progress", action="store_true", help="Disable progress bar (useful for logging)")
-    parser.add_argument("--resolve-external", action="store_true", help="Download external dependencies (fonts, scripts, CSS) for offline use")
-    parser.add_argument("--cleanup", action="store_true", help="Remove unreferenced assets (files not linked from any HTML/CSS) from the ZIM")
 
-    args = parser.parse_args()
+    cli_args = parser.parse_args()
 
     # Setup logging
-    logger = setup_logging(verbose=args.verbose, quiet=args.quiet)
+    logger = setup_logging(verbose=cli_args.verbose, quiet=cli_args.quiet)
+
+    # Load and validate config
+    logger.info(f"Loading configuration from {cli_args.config_file}")
+    config = load_config(cli_args.config_file)
+    config = validate_config(config)
+
+    # Build a unified args namespace for file_processor compatibility
+    args = SimpleNamespace(
+        verbose=cli_args.verbose,
+        quiet=cli_args.quiet,
+        dry_run=cli_args.dry_run,
+        report=cli_args.report,
+        no_progress=cli_args.no_progress,
+        optimize_images=config["optimize_images"],
+        max_image_width=config["max_image_width"],
+        image_quality=config["image_quality"],
+    )
 
     # Check feature dependencies
     if args.optimize_images and not is_pillow_available():
-        logger.warning("--optimize-images requires Pillow. Install with: pip install Pillow")
+        logger.warning("optimize_images requires Pillow. Install with: pip install Pillow")
         logger.warning("Continuing without image optimization.")
         args.optimize_images = False
 
@@ -98,14 +99,8 @@ Examples:
     if args.dry_run:
         logger.info("=== DRY RUN MODE - No ZIM file will be created ===")
 
-    # Load configuration file if provided
-    config = {}
-    if args.config:
-        logger.info(f"Loading configuration from {args.config}")
-        config = load_config(args.config)
-
     # Validate and prepare paths
-    load_path = Path(args.site_path)
+    load_path = Path(config["site_path"])
     if not load_path.exists():
         logger.error(f"Site path does not exist: {load_path}")
         sys.exit(1)
@@ -113,7 +108,7 @@ Examples:
         logger.error(f"Site path is not a directory: {load_path}")
         sys.exit(1)
 
-    save_path = Path(args.output_path)
+    save_path = Path(config["output_path"])
     try:
         save_path.mkdir(parents=True, exist_ok=True)
     except PermissionError:
@@ -123,33 +118,14 @@ Examples:
         logger.error(f"Failed to create output directory: {e}")
         sys.exit(1)
 
-    # Get metadata (priority: CLI args > config file > interactive prompts > defaults)
-    if args.non_interactive:
-        # Non-interactive mode: require all metadata
-        filename = args.name or config.get('name')
-        lang = args.language or config.get('language')
-        creator = args.creator or config.get('creator')
-        description = args.description or config.get('description')
-        title = args.title or config.get('title')
-        publisher = args.publisher or config.get('publisher', 'You')
+    # Validate and sanitize metadata
+    filename = config["name"]
+    lang = config["language"]
+    creator = config["creator"]
+    description = config["description"]
+    title = config["title"]
+    publisher = config["publisher"]
 
-        if not all([filename, lang, creator, description, title]):
-            logger.error("Non-interactive mode requires: --name, --language, --creator, --description, --title")
-            sys.exit(1)
-    else:
-        # Interactive mode with defaults from CLI/config
-        filename = args.name or config.get('name') or input("ZIM name? \t") or "test"
-
-        if not args.quiet:
-            print("For language code, see https://documentation.abes.fr/guide/html/formats/CodesLanguesISO639-3.htm")
-        lang = args.language or config.get('language') or input("Language? (eng | fra): \t") or "eng"
-
-        creator = args.creator or config.get('creator') or input("Creator? \t") or "unknown"
-        description = args.description or config.get('description') or input("Description? \t") or "This is a test or the field was left empty"
-        title = args.title or config.get('title') or input("Title? \t") or "ABC-Test"
-        publisher = args.publisher or config.get('publisher', 'You')
-
-    # Validate and sanitize inputs
     if not validate_language_code(lang):
         logger.warning(f"Invalid language code '{lang}'. Using 'eng' as fallback.")
         lang = "eng"
@@ -161,13 +137,9 @@ Examples:
 
     current_date = datetime.today().strftime('%Y-%m-%d')
 
-    # Load icon (priority: CLI --icon > config "icon" > default)
+    # Load icon
     illustration = None
-    icon_source = args.icon
-    if icon_source == "icons/comment.png" and config.get('icon'):
-        # Only use config icon if CLI wasn't explicitly set (still using default)
-        icon_source = config['icon']
-    icon_path = Path(icon_source)
+    icon_path = Path(config["icon"])
     try:
         with open(icon_path, "rb") as fp:
             illustration = fp.read()
@@ -200,7 +172,7 @@ Examples:
     bytes_saved = 0
 
     # Resolve external dependencies if requested
-    resolve_external = args.resolve_external or config.get('resolve_external', False)
+    resolve_external = config.get('resolve_external', False)
     url_mapping = None
     if resolve_external:
         url_mapping = resolve_external_dependencies(load_path, logger)
@@ -213,7 +185,7 @@ Examples:
     logger.info(f"Found {total_files} files to process")
 
     # Cleanup unreferenced assets if requested
-    cleanup = args.cleanup or config.get('cleanup', False)
+    cleanup = config.get('cleanup', False)
     removed_count = 0
     if cleanup:
         all_files, removed_count = cleanup_unreferenced(all_files, load_path, logger)

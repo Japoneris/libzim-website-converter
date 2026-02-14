@@ -6,7 +6,7 @@ A modular package for converting static websites to ZIM archive format.
 
 from .zim_item import MyItem
 from .validation import validate_language_code, validate_filename, sanitize_filename
-from .config import setup_logging, load_config
+from .config import setup_logging, load_config, validate_config
 from .image_optimizer import optimize_image, is_pillow_available
 from .report_generator import generate_link_validation_report
 from .mime_types import MIME_TYPES, get_mime_type
@@ -20,6 +20,7 @@ __all__ = [
     'sanitize_filename',
     'setup_logging',
     'load_config',
+    'validate_config',
     'optimize_image',
     'is_pillow_available',
     'generate_link_validation_report',

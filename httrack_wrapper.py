@@ -55,7 +55,7 @@ def derive_name_from_url(url):
     return name.lower()
 
 
-def create_config_file(name, url, config_dir='config', resolve_external=False, icon=None):
+def create_config_file(name, url, download_dir, config_dir='config', resolve_external=False, icon=None):
     """Create a configuration file for the downloaded website."""
     config_dir = Path(config_dir)
     config_dir.mkdir(exist_ok=True)
@@ -68,7 +68,21 @@ def create_config_file(name, url, config_dir='config', resolve_external=False, i
     title = domain.replace('www.', '').replace('.com', '').replace('.org', '').replace('.net', '')
     title = title.replace('-', ' ').replace('_', ' ').title()
 
+    # Detect site_path: httrack puts content in a subdirectory named after the domain
+    site_path = None
+    download_path = Path(download_dir)
+    if download_path.exists():
+        for subdir in sorted(download_path.iterdir()):
+            if subdir.is_dir() and subdir.name not in ('hts-cache', '_external'):
+                site_path = str(subdir)
+                break
+    if site_path is None:
+        # Fallback: use domain name as subdirectory
+        domain_dir = parsed.netloc or parsed.path.strip('/')
+        site_path = str(download_path / domain_dir)
+
     config_data = {
+        "site_path": site_path,
         "name": name,
         "title": title,
         "creator": "Unknown",
@@ -327,7 +341,7 @@ Examples:
 
     # Create config file
     print(f"\nCreating config file...")
-    config_file = create_config_file(name, args.url, args.config_dir,
+    config_file = create_config_file(name, args.url, download_dir, args.config_dir,
                                      resolve_external=args.resolve_external,
                                      icon=icon_path)
     print(f"Config file created: {config_file}")
@@ -343,7 +357,7 @@ Examples:
         print(f"\nNext steps:")
         print(f"1. Review and edit config file: {config_file}")
         print(f"2. Convert to ZIM:")
-        print(f"   python3 website_converter.py {download_dir}/*/ --config {config_file}")
+        print(f"   python3 website_converter.py {config_file}")
 
 
 if __name__ == "__main__":
