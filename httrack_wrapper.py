@@ -55,7 +55,7 @@ def derive_name_from_url(url):
     return name.lower()
 
 
-def create_config_file(name, url, download_dir, config_dir='config', resolve_external=False, icon=None):
+def create_config_file(name, url, download_dir, config_dir='config', resolve_external=True, icon=None):
     """Create a configuration file for the downloaded website."""
     config_dir = Path(config_dir)
     config_dir.mkdir(exist_ok=True)
@@ -306,7 +306,6 @@ Examples:
     parser.add_argument("--config-dir", default="config", help="Directory for config files (default: config)")
     parser.add_argument("--httrack-args", help="Additional arguments to pass to httrack (as a quoted string)")
     parser.add_argument("--skip-download", action="store_true", help="Skip download, only create config file")
-    parser.add_argument("--resolve-external", action="store_true", help="Enable external dependency resolution during ZIM conversion")
     parser.add_argument("--no-favicon", action="store_true", help="Skip favicon fetching")
 
     args = parser.parse_args()
@@ -342,7 +341,7 @@ Examples:
     # Create config file
     print(f"\nCreating config file...")
     config_file = create_config_file(name, args.url, download_dir, args.config_dir,
-                                     resolve_external=args.resolve_external,
+                                     resolve_external=True,
                                      icon=icon_path)
     print(f"Config file created: {config_file}")
 
