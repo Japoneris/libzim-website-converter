@@ -13,6 +13,7 @@ CONFIG_DEFAULTS = {
     "output_path": "zim_files",
     "icon": "icons/comment.png",
     "publisher": "You",
+    "main_page": "index.html",
     "resolve_external": False,
     "cleanup": False,
     "optimize_images": False,

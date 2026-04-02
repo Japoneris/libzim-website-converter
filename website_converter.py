@@ -200,7 +200,7 @@ Create a config file interactively:
         # Normal mode - create ZIM file
         try:
             with Creator(str(save_path / f"{filename}.zim")).config_indexing(True, lang) as creator:
-                creator.set_mainpath("index.html")
+                creator.set_mainpath(config.get("main_page", "index.html"))
 
                 # Add illustration if available
                 if illustration:

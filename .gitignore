@@ -1,6 +1,8 @@
 # ZIM archives
 zim_files/*.zim
 
+icons/
+
 # Downloaded websites
 downloads/
 

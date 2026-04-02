@@ -55,7 +55,28 @@ def derive_name_from_url(url):
     return name.lower()
 
 
-def create_config_file(name, url, download_dir, config_dir='config', resolve_external=True, icon=None):
+def derive_main_page_from_url(url):
+    """Extract the relative main page path from a URL.
+
+    Examples:
+        https://domain.com/             → "index.html"
+        https://domain.com/pages/       → "pages/index.html"
+        https://domain.com/pages/foo.html → "pages/foo.html"
+    """
+    parsed = urlparse(url)
+    path = parsed.path.strip('/')
+
+    if not path:
+        return "index.html"
+
+    # Trailing slash means it's a directory, so append index.html
+    if parsed.path.endswith('/'):
+        return path + '/index.html'
+
+    return path
+
+
+def create_config_file(name, url, download_dir, config_dir='config', resolve_external=True, icon=None, single_page=False):
     """Create a configuration file for the downloaded website."""
     config_dir = Path(config_dir)
     config_dir.mkdir(exist_ok=True)
@@ -81,6 +102,8 @@ def create_config_file(name, url, download_dir, config_dir='config', resolve_ext
         domain_dir = parsed.netloc or parsed.path.strip('/')
         site_path = str(download_path / domain_dir)
 
+    main_page = derive_main_page_from_url(url)
+
     config_data = {
         "site_path": site_path,
         "name": name,
@@ -89,7 +112,9 @@ def create_config_file(name, url, download_dir, config_dir='config', resolve_ext
         "publisher": "Downloaded via HTTrack",
         "description": f"Offline copy of {url}",
         "language": "eng",
-        "resolve_external": resolve_external
+        "resolve_external": resolve_external,
+        "main_page": main_page,
+        "single_page": single_page,
     }
 
     if icon:
@@ -295,6 +320,9 @@ Examples:
   # Download to custom output directory
   python3 httrack_wrapper.py https://example.com/ --output downloads/example
 
+  # Download a single page only (no link following)
+  python3 httrack_wrapper.py https://example.com/docs/page.html --single-page
+
   # Pass additional httrack options
   python3 httrack_wrapper.py https://example.com/ --httrack-args "-r3 --max-rate=1000000"
         """
@@ -305,6 +333,7 @@ Examples:
     parser.add_argument("--output", default="downloads", help="Output directory for downloads (default: downloads)")
     parser.add_argument("--config-dir", default="config", help="Directory for config files (default: config)")
     parser.add_argument("--httrack-args", help="Additional arguments to pass to httrack (as a quoted string)")
+    parser.add_argument("--single-page", action="store_true", help="Download only the given URL, without following links (adds -r1 to httrack)")
     parser.add_argument("--skip-download", action="store_true", help="Skip download, only create config file")
     parser.add_argument("--no-favicon", action="store_true", help="Skip favicon fetching")
 
@@ -325,6 +354,9 @@ Examples:
         # Parse additional httrack arguments
         httrack_args = args.httrack_args.split() if args.httrack_args else []
 
+        if args.single_page:
+            httrack_args = ['-r1'] + httrack_args
+
         success = run_httrack(args.url, download_dir, httrack_args)
         if not success:
             print("Download failed. Config file will still be created.", file=sys.stderr)
@@ -342,7 +374,8 @@ Examples:
     print(f"\nCreating config file...")
     config_file = create_config_file(name, args.url, download_dir, args.config_dir,
                                      resolve_external=True,
-                                     icon=icon_path)
+                                     icon=icon_path,
+                                     single_page=args.single_page)
     print(f"Config file created: {config_file}")
 
     print(f"\n=== Summary ===")
@@ -350,7 +383,6 @@ Examples:
     print(f"Download directory: {download_dir}")
     print(f"Config file: {config_file}")
     print(f"Icon: {icon_path or 'not found (using default)'}")
-    print(f"Resolve external deps: {args.resolve_external}")
 
     if not args.skip_download:
         print(f"\nNext steps:")
