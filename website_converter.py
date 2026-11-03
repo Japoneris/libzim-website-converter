@@ -205,7 +205,7 @@ Create a config file interactively:
                 # Add illustration if available
                 if illustration:
                     try:
-                        creator.add_illustration(48, illustration)
+                        creator.add_illustration(illustration, 48)
                     except Exception as e:
                         logger.warning(f"Failed to add illustration: {e}")
 
