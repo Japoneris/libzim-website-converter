@@ -7,7 +7,6 @@ import logging
 import sys
 from pathlib import Path
 
-
 # Default values for optional config fields
 CONFIG_DEFAULTS = {
     "output_path": "zim_files",
@@ -70,7 +69,7 @@ def load_config(config_path):
         sys.exit(1)
 
     try:
-        with open(config_file, 'r', encoding='utf-8') as f:
+        with open(config_file, encoding='utf-8') as f:
             return json.load(f)
     except json.JSONDecodeError as e:
         logging.error(f"Invalid JSON in config file: {e}")

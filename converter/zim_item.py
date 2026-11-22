@@ -2,7 +2,7 @@
 ZIM Item wrapper class for libzim.
 """
 
-from libzim.writer import Item, StringProvider, FileProvider, Hint, Blob
+from libzim.writer import Blob, FileProvider, Hint, Item, StringProvider
 
 
 class MyItem(Item):

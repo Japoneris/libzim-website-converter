@@ -13,7 +13,7 @@ import re
 import ssl
 import urllib.request
 from pathlib import Path
-from urllib.parse import urlparse, unquote, urljoin
+from urllib.parse import unquote, urljoin, urlparse
 
 try:
     from tqdm import tqdm
@@ -173,7 +173,7 @@ def resolve_external_dependencies(load_path, logger):
             if '_external' in filepath.parts:
                 continue
             try:
-                with open(filepath, 'r', encoding='utf-8', errors='replace') as f:
+                with open(filepath, encoding='utf-8', errors='replace') as f:
                     content = f.read()
                 urls = find_external_urls(content)
                 urls_to_download.update(urls)
@@ -211,7 +211,7 @@ def resolve_external_dependencies(load_path, logger):
         if not full_path.exists():
             continue
         try:
-            with open(full_path, 'r', encoding='utf-8', errors='replace') as f:
+            with open(full_path, encoding='utf-8', errors='replace') as f:
                 content = f.read()
 
             # Resolve absolute/protocol-relative URLs

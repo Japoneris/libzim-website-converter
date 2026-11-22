@@ -11,11 +11,10 @@ import sys
 from pathlib import Path
 
 from converter.validation import (
-    validate_language_code,
-    validate_filename,
     sanitize_filename,
+    validate_filename,
+    validate_language_code,
 )
-
 
 # ISO 639-3 codes (common subset)
 COMMON_LANGUAGES = {
@@ -78,7 +77,7 @@ def detect_site_path(base_dir):
         print(f"\n  Multiple subdirectories found in {base_dir}:")
         for i, c in enumerate(candidates, 1):
             print(f"    {i}. {c.name}")
-        choice = input(f"  Choose [1]: ").strip()
+        choice = input("  Choose [1]: ").strip()
         try:
             idx = int(choice) - 1 if choice else 0
             return str(candidates[idx])
@@ -228,7 +227,7 @@ Examples:
         json.dump(config, f, indent=2, ensure_ascii=False)
 
     print(f"\n=== Config saved to {out_file} ===")
-    print(f"\nTo create the ZIM file:")
+    print("\nTo create the ZIM file:")
     print(f"  python3 website_converter.py {out_file}")
 
 

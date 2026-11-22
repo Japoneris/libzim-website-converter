@@ -6,9 +6,9 @@ Otherwise, it should handle page relativity itself.
 """
 
 import argparse
-import logging
 import sys
 from datetime import datetime
+from importlib.util import find_spec
 from pathlib import Path
 from types import SimpleNamespace
 from urllib.parse import unquote
@@ -16,26 +16,22 @@ from urllib.parse import unquote
 from libzim.writer import Creator
 
 from converter import (
-    setup_logging,
-    load_config,
-    validate_config,
-    validate_language_code,
-    validate_filename,
-    sanitize_filename,
-    is_pillow_available,
+    cleanup_unreferenced,
     generate_link_validation_report,
+    is_pillow_available,
+    load_config,
     process_dry_run,
     process_files,
-    cleanup_unreferenced,
     resolve_external_dependencies,
     resolve_main_page,
+    sanitize_filename,
+    setup_logging,
+    validate_config,
+    validate_filename,
+    validate_language_code,
 )
 
-try:
-    from tqdm import tqdm
-    TQDM_AVAILABLE = True
-except ImportError:
-    TQDM_AVAILABLE = False
+TQDM_AVAILABLE = find_spec("tqdm") is not None
 
 
 def main(argv=None):
@@ -248,12 +244,12 @@ def main(argv=None):
 
         # Cleanup stats
         if cleanup and removed_count > 0:
-            logger.info(f"\n=== Cleanup ===")
+            logger.info("\n=== Cleanup ===")
             logger.info(f"Removed {removed_count} unreferenced assets")
 
         # Image optimization stats
         if args.optimize_images and images_optimized > 0:
-            logger.info(f"\n=== Image Optimization ===")
+            logger.info("\n=== Image Optimization ===")
             logger.info(f"Optimized {images_optimized} images")
             logger.info(f"Saved {bytes_saved / 1024 / 1024:.2f} MB")
 
@@ -268,7 +264,7 @@ def main(argv=None):
                 for warning in lst_missing_index:
                     logger.warning(f"  {warning}")
             else:
-                logger.warning(f"  (use --verbose to see all warnings)")
+                logger.warning("  (use --verbose to see all warnings)")
 
         if lst_errors:
             logger.error(f"\n{len(lst_errors)} files failed to process:")
@@ -276,7 +272,7 @@ def main(argv=None):
                 for error in lst_errors:
                     logger.error(f"  {error}")
             else:
-                logger.error(f"  (use --verbose to see all errors)")
+                logger.error("  (use --verbose to see all errors)")
 
         # Generate HTML report if requested
         if args.report or args.dry_run:

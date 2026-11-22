@@ -12,7 +12,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from urllib.parse import urlparse, urljoin
+from urllib.parse import urljoin, urlparse
 
 try:
     import urllib.request
@@ -21,8 +21,9 @@ except ImportError:
     URLLIB_AVAILABLE = False
 
 try:
-    from PIL import Image
     import io
+
+    from PIL import Image
     PILLOW_AVAILABLE = True
 except ImportError:
     PILLOW_AVAILABLE = False
@@ -374,27 +375,27 @@ Examples:
     # Try to fetch favicon
     icon_path = None
     if not args.no_favicon:
-        print(f"\n=== Fetching Favicon ===")
+        print("\n=== Fetching Favicon ===")
         icon_path = fetch_and_save_favicon(args.url, download_dir, name)
 
     # Create config file
-    print(f"\nCreating config file...")
+    print("\nCreating config file...")
     config_file = create_config_file(name, args.url, download_dir, args.config_dir,
                                      resolve_external=True,
                                      icon=icon_path,
                                      single_page=args.single_page)
     print(f"Config file created: {config_file}")
 
-    print(f"\n=== Summary ===")
+    print("\n=== Summary ===")
     print(f"Project name: {name}")
     print(f"Download directory: {download_dir}")
     print(f"Config file: {config_file}")
     print(f"Icon: {icon_path or 'not found (using default)'}")
 
     if not args.skip_download:
-        print(f"\nNext steps:")
+        print("\nNext steps:")
         print(f"1. Review and edit config file: {config_file}")
-        print(f"2. Convert to ZIM:")
+        print("2. Convert to ZIM:")
         print(f"   python3 website_converter.py {config_file}")
 
 

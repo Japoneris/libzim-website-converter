@@ -21,6 +21,9 @@ ZimSite/
 │   ├── external_deps.py       # External URL discovery/download/rewrite
 │   └── file_processor.py      # Core file processing
 ├── tests/                     # Unit tests (pytest)
+├── docs/                      # Numbered feature notes
+├── pytest.ini                 # Test configuration
+├── ruff.toml                  # Lint configuration
 ├── config/                    # Configuration files
 ├── icons/                     # Icon resources
 └── zim_files/                 # Output directory
@@ -108,6 +111,15 @@ Unit tests live in `tests/` and mirror the modules:
 
 ```bash
 my_env/bin/python -m pytest -q
+```
+
+### Linting
+
+`ruff.toml` pins the lint rules (pyflakes, pycodestyle error codes, import order, bugbear and pyupgrade) and excludes generated/large directories (`downloads/`, `zim_files/`, `my_env/`, `.hermes/`).
+
+```bash
+my_env/bin/ruff check .          # zero errors expected
+my_env/bin/ruff check --fix .    # apply safe fixes
 ```
 
 ## Module Dependencies

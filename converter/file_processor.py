@@ -12,10 +12,10 @@ try:
 except ImportError:
     TQDM_AVAILABLE = False
 
-from .zim_item import MyItem
-from .mime_types import MIME_TYPES
-from .image_optimizer import optimize_image
 from .external_deps import replace_external_urls
+from .image_optimizer import optimize_image
+from .mime_types import MIME_TYPES
+from .zim_item import MyItem
 
 
 def process_html_content(data, depth, filepath, load_path, lst_missing_index, relpath):
@@ -205,7 +205,7 @@ def process_dry_run(all_files, load_path, args, lst_unknown, lst_missing_index, 
                 lst_unknown.append(ext)
 
             if str(filepath).endswith(".html") or str(filepath).endswith(".htm"):
-                with open(filepath, "r", encoding="utf-8", errors="replace") as fp:
+                with open(filepath, encoding="utf-8", errors="replace") as fp:
                     data = fp.read()
                     links = re.findall(r'href="([^"]+/)"', data)
                     for link in links:
@@ -277,7 +277,7 @@ def process_files(creator, all_files, load_path, args, lst_unknown, lst_missing_
                         item = MyItem(title=title, path=relpath, fpath=str(filepath), mimetype=mime)
                 elif url_mapping and ext == 'css':
                     try:
-                        with open(filepath, 'r', encoding='utf-8', errors='replace') as fp:
+                        with open(filepath, encoding='utf-8', errors='replace') as fp:
                             css_data = fp.read()
                         css_data = replace_external_urls(css_data, url_mapping, depth)
                         item = MyItem(title=title, path=relpath, content=css_data, mimetype=mime)
@@ -288,7 +288,7 @@ def process_files(creator, all_files, load_path, args, lst_unknown, lst_missing_
                     item = MyItem(title=title, path=relpath, fpath=str(filepath), mimetype=mime)
 
             elif str(filepath).endswith(".html") or str(filepath).endswith(".htm"):
-                with open(filepath, "r", encoding="utf-8", errors="replace") as fp:
+                with open(filepath, encoding="utf-8", errors="replace") as fp:
                     data = fp.read()
 
                 data = process_html_content(data, depth, filepath, load_path, lst_missing_index, relpath)

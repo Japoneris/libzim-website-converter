@@ -238,12 +238,16 @@ Unknown extensions are added to the validation report.
 
 ## Development
 
-Tests use pytest and run against the project virtual environment:
+Tests and linting run against the project virtual environment:
 
 ```bash
 my_env/bin/pip install -r requirements.txt
 my_env/bin/python -m pytest -q
+my_env/bin/ruff check .
+my_env/bin/ruff check --fix .   # apply safe fixes
 ```
+
+Lint rules and exclusions are configured in `ruff.toml`. Run `ruff check .` before committing: it is the code-quality gate for this project. The formatter (`ruff format .`) is available but is not enforced yet.
 
 See `docs/` for notes describing each feature and the files it changed.
 
