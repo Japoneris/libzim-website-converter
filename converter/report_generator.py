@@ -5,6 +5,7 @@ HTML report generation for ZIM conversion validation.
 import logging
 from datetime import datetime
 from pathlib import Path
+from string import Template
 
 
 def generate_link_validation_report(lst_missing_index, lst_unknown, lst_errors, output_path):
@@ -20,7 +21,7 @@ def generate_link_validation_report(lst_missing_index, lst_unknown, lst_errors, 
     Returns:
         Path: Path to generated report or None if failed
     """
-    html_content = """<!DOCTYPE html>
+    html_content = Template("""<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -50,27 +51,27 @@ def generate_link_validation_report(lst_missing_index, lst_unknown, lst_errors, 
 
         <div class="summary">
             <div class="stat-box warning">
-                <div class="stat-number">{missing_links_count}</div>
+                <div class="stat-number">$missing_links_count</div>
                 <div class="stat-label">Missing Index Pages</div>
             </div>
             <div class="stat-box warning">
-                <div class="stat-number">{unknown_mime_count}</div>
+                <div class="stat-number">$unknown_mime_count</div>
                 <div class="stat-label">Unknown MIME Types</div>
             </div>
             <div class="stat-box error">
-                <div class="stat-number">{errors_count}</div>
+                <div class="stat-number">$errors_count</div>
                 <div class="stat-label">Processing Errors</div>
             </div>
         </div>
 
-        {missing_section}
-        {mime_section}
-        {error_section}
+        $missing_section
+        $mime_section
+        $error_section
 
-        <div class="timestamp">Generated: {timestamp}</div>
+        <div class="timestamp">Generated: $timestamp</div>
     </div>
 </body>
-</html>"""
+</html>""")
 
     missing_section = ""
     if lst_missing_index:
@@ -100,7 +101,7 @@ def generate_link_validation_report(lst_missing_index, lst_unknown, lst_errors, 
         <div class="issue-list">{items}</div>
         """
 
-    html_content = html_content.format(
+    html_content = html_content.safe_substitute(
         missing_links_count=len(lst_missing_index),
         unknown_mime_count=len(set(lst_unknown)),
         errors_count=len(lst_errors),
