@@ -13,7 +13,7 @@ import re
 import ssl
 import urllib.request
 from pathlib import Path
-from urllib.parse import urlparse, unquote
+from urllib.parse import urlparse, unquote, urljoin
 
 try:
     from tqdm import tqdm
@@ -23,14 +23,21 @@ except ImportError:
 
 
 # Regex patterns for external resource URLs in HTML/CSS
-# Matches src="https://..." or src="//..."
-_RE_SRC = re.compile(r'src=["\']((https?:)?//[^"\']+)["\']')
-# Matches <link ... href="https://..." or href="//..." (but NOT <a href=...)
-_RE_LINK_HREF = re.compile(r'<link\b[^>]*\bhref=["\']((https?:)?//[^"\']+)["\']')
+# Matches src="https://..." or src='...' or unquoted src=https://...
+_RE_SRC = re.compile(r'\bsrc=["\']?((https?:)?//[^\s"\'<>]+)["\']?')
+# Matches <link ... href="https://..." or href='...' or unquoted href=https://... (but NOT <a href=...)
+_RE_LINK_HREF = re.compile(r'<link\b[^>]*\bhref=["\']?((https?:)?//[^\s"\'<>]+)["\']?')
 # Matches url(https://...) or url("https://...") or url('https://...')
 _RE_CSS_URL = re.compile(r'url\(["\']?((https?:)?//[^"\')\s]+)["\']?\)')
 # Matches @import "https://..." or @import url(...)
 _RE_CSS_IMPORT = re.compile(r'@import\s+["\']((https?:)?//[^"\']+)["\']')
+# Matches relative url() references in CSS (excludes absolute, protocol-relative, and data: URIs)
+_RE_CSS_RELATIVE_URL = re.compile(r'url\(["\']?((?!https?://|//|data:)[^"\')\s]+)["\']?\)')
+
+
+def find_relative_urls_in_css(content):
+    """Find relative url() references in CSS (excludes absolute, protocol-relative, data: URIs)."""
+    return set(_RE_CSS_RELATIVE_URL.findall(content))
 
 
 def find_external_urls(content):
@@ -187,9 +194,9 @@ def resolve_external_dependencies(load_path, logger):
         dest = load_path / local_path
         if download_resource(url, dest):
             url_mapping[url] = local_path
-            # Track CSS files for recursive scanning
+            # Track CSS files for recursive scanning (include original URL for relative resolution)
             if local_path.endswith('.css'):
-                downloaded_css.append((local_path, 1))
+                downloaded_css.append((local_path, 1, url))
 
     # Phase 3: Recursively scan downloaded CSS files (max depth 3)
     if TQDM_AVAILABLE and downloaded_css:
@@ -197,7 +204,7 @@ def resolve_external_dependencies(load_path, logger):
     else:
         pbar = None
     while downloaded_css:
-        css_path, depth = downloaded_css.pop(0)
+        css_path, depth, css_url = downloaded_css.pop(0)
         if depth > 3:
             continue
         full_path = load_path / css_path
@@ -206,6 +213,8 @@ def resolve_external_dependencies(load_path, logger):
         try:
             with open(full_path, 'r', encoding='utf-8', errors='replace') as f:
                 content = f.read()
+
+            # Resolve absolute/protocol-relative URLs
             nested_urls = find_external_urls(content)
             for url in nested_urls:
                 if url in url_mapping:
@@ -217,7 +226,22 @@ def resolve_external_dependencies(load_path, logger):
                     if pbar is not None:
                         pbar.update(1)
                     if local_path.endswith('.css'):
-                        downloaded_css.append((local_path, depth + 1))
+                        downloaded_css.append((local_path, depth + 1, url))
+
+            # Resolve relative url() references (e.g. ../webfonts/fa-solid-900.woff2)
+            # No URL rewriting needed — _external/ preserves the domain+path structure
+            # so the relative path from the CSS file remains valid automatically.
+            for rel in find_relative_urls_in_css(content):
+                abs_url = urljoin(css_url, rel)
+                local_path = url_to_local_path(abs_url)
+                dest = load_path / local_path
+                if not dest.exists():
+                    if download_resource(abs_url, dest):
+                        if pbar is not None:
+                            pbar.update(1)
+                        if local_path.endswith('.css') and depth < 3:
+                            downloaded_css.append((local_path, depth + 1, abs_url))
+
         except Exception as e:
             logger.warning(f"Failed to scan nested CSS {css_path}: {e}")
     if pbar is not None:

@@ -102,7 +102,14 @@ def create_config_file(name, url, download_dir, config_dir='config', resolve_ext
         domain_dir = parsed.netloc or parsed.path.strip('/')
         site_path = str(download_path / domain_dir)
 
-    main_page = derive_main_page_from_url(url)
+    url_path = derive_main_page_from_url(url)
+    main_page = url_path
+    if site_path:
+        site = Path(site_path)
+        for candidate in [url_path, url_path + ".html", url_path + "/index.html"]:
+            if (site / candidate).is_file():
+                main_page = candidate
+                break
 
     config_data = {
         "site_path": site_path,
