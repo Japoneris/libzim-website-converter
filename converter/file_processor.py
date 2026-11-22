@@ -20,37 +20,39 @@ from .external_deps import replace_external_urls
 
 def process_html_content(data, depth, filepath, load_path, lst_missing_index, relpath):
     """
-    Process HTML content: fix paths and validate index links.
+    Rewrite root-relative URLs for offline ZIM paths and validate index links.
 
     Args:
         data: HTML content string
-        depth: Directory depth of the file
-        filepath: Path to the HTML file
+        depth: Directory depth of the file relative to the site root
+        filepath: Path of the HTML file being processed
         load_path: Root path of the site
-        lst_missing_index: List to collect missing index warnings
-        relpath: Relative path of the file
+        lst_missing_index: List collecting warnings about missing index.html
+        relpath: Relative path of the current file, used in warnings
 
     Returns:
-        str: Processed HTML content
+        str: HTML content with rewritten URLs
     """
-    data = data.replace('href="/', 'href="{}'.format("../" * depth))
-    data = data.replace('src="/', 'src="{}'.format("../" * depth))
-    data = data.replace('url(/', 'url({}'.format("../" * depth))
-    data = data.replace('url("/', 'url("{}'.format("../" * depth))
+    data = data.replace('href="/', 'href="' + "../" * depth)
+    data = data.replace('src="/', 'src="' + "../" * depth)
+    data = data.replace('url(/', 'url(' + "../" * depth)
+    data = data.replace('url("/', 'url("' + "../" * depth)
 
     def check_and_replace_index(match):
-        link = match.group(1)
-        index_path = load_path / link.lstrip('/') / 'index.html'
-
-        if index_path.exists():
-            return link + '/index.html"'
+        attribute = match.group(1)
+        link = match.group(2)
+        if link.startswith('/'):
+            target = load_path / link.lstrip('/')
         else:
-            warning_msg = f"{relpath} -> Link '{link}/' has no index.html"
-            if warning_msg not in lst_missing_index:
-                lst_missing_index.append(warning_msg)
-            return link + '/"'
+            target = (filepath.parent / link).resolve()
+        if (target / 'index.html').is_file():
+            return f'{attribute}{link}index.html'
+        warning_msg = f"{relpath} -> Link '{link}' has no index.html"
+        if warning_msg not in lst_missing_index:
+            lst_missing_index.append(warning_msg)
+        return f'{attribute}{link}'
 
-    data = re.sub(r'((?:href="|src=")(?:\.\./)*[^"]*/)(?=")', check_and_replace_index, data)
+    data = re.sub(r'(href="|src=")((?:\.\./)*[^"]*/)(?=")', check_and_replace_index, data)
     return data
 
 
