@@ -59,7 +59,7 @@ The original monolithic `website_converter.py` (720 lines) was split into a pack
    - `optimize_image()` - Resize and compress images, preserving JPEG/PNG format
    - `is_pillow_available()` - Check for the optional Pillow dependency
 
-6. **report_generator.py** (120 lines)
+6. **report_generator.py** (121 lines)
    - `generate_link_validation_report()` - Create an HTML report
    - Shows missing index pages, unknown MIME types, and errors
 
@@ -102,6 +102,7 @@ Unit tests live in `tests/` and mirror the modules:
 - `test_validation.py` - shared validators and config-builder parity
 - `test_file_processor.py` - HTML path rewriting and index-link validation
 - `test_image_optimizer.py` - format preservation and small-image skip
+- `test_report_generator.py` - HTML report renders without breaking on CSS braces
 - `test_path_utils.py` - main-page resolution
 - `test_cli.py` - CLI help smoke test
 
