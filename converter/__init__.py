@@ -12,6 +12,7 @@ from .report_generator import generate_link_validation_report
 from .mime_types import MIME_TYPES, get_mime_type
 from .file_processor import process_html_content, process_dry_run, process_files, cleanup_unreferenced
 from .external_deps import resolve_external_dependencies, replace_external_urls
+from .path_utils import resolve_main_page
 
 __all__ = [
     'MyItem',
@@ -32,6 +33,7 @@ __all__ = [
     'cleanup_unreferenced',
     'resolve_external_dependencies',
     'replace_external_urls',
+    'resolve_main_page',
 ]
 
 __version__ = '1.0.0'
