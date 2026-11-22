@@ -7,9 +7,14 @@ Creates a JSON configuration file with all settings needed by website_converter.
 
 import argparse
 import json
-import re
 import sys
 from pathlib import Path
+
+from converter.validation import (
+    validate_language_code,
+    validate_filename,
+    sanitize_filename,
+)
 
 
 # ISO 639-3 codes (common subset)
@@ -27,26 +32,6 @@ COMMON_LANGUAGES = {
     "kor": "Korean",
     "ara": "Arabic",
 }
-
-
-def validate_language_code(code):
-    """Check that code is a 3-letter lowercase string."""
-    return bool(re.match(r'^[a-z]{3}$', code))
-
-
-def validate_filename(name):
-    """Check for invalid filename characters."""
-    invalid = '<>:"/\\|?*'
-    return all(c not in name for c in invalid) and len(name) > 0
-
-
-def sanitize_filename(name):
-    """Remove invalid characters from filename."""
-    invalid = '<>:"/\\|?* '
-    for c in invalid:
-        name = name.replace(c, '-')
-    name = re.sub(r'-+', '-', name).strip('-')
-    return name or 'unnamed'
 
 
 def prompt(label, default=None, required=False, validator=None, sanitizer=None):
