@@ -1,5 +1,7 @@
 # ZIM archives
 zim_files/*.zim
+zim_files/
+config/
 
 icons/
 
